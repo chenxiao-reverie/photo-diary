@@ -142,6 +142,26 @@
     accent-color: var(--accent);
     height: 28px;
   }
+  input[type="range"]:disabled { opacity: .35; }
+
+  .lock-btn {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 9px 0;
+    font-size: 14px;
+    font-family: inherit;
+    background: #fbfaf7;
+    color: var(--ink);
+    cursor: pointer;
+    letter-spacing: 1px;
+  }
+  .lock-btn.locked {
+    background: var(--ink);
+    color: #fff;
+    border-color: var(--ink);
+  }
+  .layout-locked .lock-btn:not(.locked) { opacity: .6; }
 
   .preset-row { display: flex; gap: 8px; align-items: stretch; }
   .preset-row select, .preset-row input[type="text"] {
@@ -256,6 +276,10 @@
     </div>
 
     <div class="row">
+      <button id="lockBtn" class="lock-btn" type="button">🔒 锁定留白（防误触）</button>
+    </div>
+
+    <div class="row">
       <label>💾 留白预设 <span class="hint">左右 + 顶部一起保存</span></label>
       <div class="preset-row">
         <select id="presetSelect"></select>
@@ -287,7 +311,8 @@
     fg: '#2b2b2b',
     ratio: '3:4',
     marginX: 0.083,   // 图片左右留白（占宽度比例）
-    topGap: 0.10      // 图片上方留白（占高度比例）
+    topGap: 0.10,     // 图片上方留白（占高度比例）
+    locked: false     // 留白锁定（防误触）
   };
 
   var SERIF = '"LXGW WenKai Screen","Songti SC","Noto Serif SC","STSong","SimSun","Source Han Serif SC",serif';
@@ -526,15 +551,35 @@
   var topGapHint = document.getElementById('topGapHint');
 
   marginXSlider.addEventListener('input', function () {
+    if (state.locked) return;
     state.marginX = parseInt(marginXSlider.value, 10) / 100;
     marginXHint.textContent = marginXSlider.value + '%';
+    rememberLast();
     render();
   });
   topGapSlider.addEventListener('input', function () {
+    if (state.locked) return;
     state.topGap = parseInt(topGapSlider.value, 10) / 100;
     topGapHint.textContent = topGapSlider.value + '%';
     rememberLast();
     render();
+  });
+
+  // ---------- 留白锁定/解锁（防误触） ----------
+  var lockBtn = document.getElementById('lockBtn');
+
+  function setLocked(locked, silent) {
+    state.locked = locked;
+    marginXSlider.disabled = locked;
+    topGapSlider.disabled = locked;
+    lockBtn.textContent = locked ? '🔒 留白已锁定（点我解锁调整）' : '🔓 已解锁（调整完记得锁定防误触）';
+    lockBtn.classList.toggle('locked', locked);
+    document.body.classList.toggle('layout-locked', locked);
+    if (!silent) rememberLast();
+  }
+
+  lockBtn.addEventListener('click', function () {
+    setLocked(!state.locked);
   });
 
   // ---------- 留白预设（localStorage 持久化） ----------
@@ -611,7 +656,9 @@
 
   function rememberLast() {
     try {
-      localStorage.setItem(LAST_KEY, JSON.stringify({ marginX: state.marginX, topGap: state.topGap }));
+      localStorage.setItem(LAST_KEY, JSON.stringify({
+        marginX: state.marginX, topGap: state.topGap, locked: !!state.locked
+      }));
     } catch (e) {}
   }
 
@@ -667,7 +714,7 @@
 
   document.getElementById('exportBtn').addEventListener('click', exportCard);
 
-  // 恢复上次使用的留白参数
+  // 恢复上次使用的留白参数与锁定状态
   (function restoreLast() {
     try {
       var s = JSON.parse(localStorage.getItem(LAST_KEY) || 'null');
@@ -679,6 +726,7 @@
         marginXHint.textContent = marginXSlider.value + '%';
         topGapHint.textContent = topGapSlider.value + '%';
       }
+      setLocked(!!(s && s.locked), true);
     } catch (e) {}
   })();
   renderPresetOptions(0);
