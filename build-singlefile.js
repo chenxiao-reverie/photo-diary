@@ -11,6 +11,7 @@ const ROOT = __dirname;
 const INDEX = path.join(ROOT, 'index.html');
 const FONT_CSS = path.join(ROOT, 'fonts', 'LXGWWenKaiScreen', 'lxgwwenkaiscreen.css');
 const FONT_DIR = path.join(ROOT, 'fonts', 'LXGWWenKaiScreen', 'files');
+const REGISTRY = 'https://registry.npmmirror.com';
 const OUT = path.join(ROOT, '图片日记-单文件版.html');
 
 let css = fs.readFileSync(FONT_CSS, 'utf8');
@@ -35,6 +36,26 @@ if (!html.includes(linkTag)) {
   process.exit(1);
 }
 html = html.replace(linkTag, `<style>\n/* 霞鹜文楷屏幕阅读版（内嵌 base64，共 ${inlined} 个分块） */\n${css}\n</style>`);
+
+// 其余字体：单文件不带 fonts 目录，改走 jsdelivr CDN（离线时回退系统衬线）
+const CDN_FONTS = {
+  'fonts/ma-shan-zheng/400.css': '@fontsource/ma-shan-zheng',
+  'fonts/zcool-kuaile/400.css': '@fontsource/zcool-kuaile',
+  'fonts/long-cang/400.css': '@fontsource/long-cang',
+  'fonts/zhi-mang-xing/400.css': '@fontsource/zhi-mang-xing',
+  'fonts/noto-serif-sc/400.css': '@fontsource/noto-serif-sc'
+};
+for (const [localPath, pkg] of Object.entries(CDN_FONTS)) {
+  let ver = '5.3.0';
+  try {
+    const meta = JSON.parse(require('child_process').execSync(
+      `curl -sL --connect-timeout 10 "${REGISTRY}/${pkg}/latest"`
+    ).toString());
+    ver = meta.version || ver;
+  } catch (e) { console.warn(`⚠️ ${pkg} 版本查询失败，用默认 ${ver}`); }
+  const re = new RegExp(`'${localPath.replace(/\//g, '\\/')}'`, 'g');
+  html = html.replace(re, `'https://cdn.jsdelivr.net/npm/${pkg}@${ver}/400.css'`);
+}
 
 fs.writeFileSync(OUT, html);
 const mb = (fs.statSync(OUT).size / 1024 / 1024).toFixed(1);

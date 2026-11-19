@@ -163,6 +163,19 @@
   }
   .layout-locked .lock-btn:not(.locked) { opacity: .6; }
 
+  .font-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .font-chip {
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 7px 12px;
+    font-size: 15px;
+    background: #fbfaf7;
+    color: var(--ink);
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .font-chip.active { background: var(--ink); color: #fff; border-color: var(--ink); }
+
   .preset-row { display: flex; gap: 8px; align-items: stretch; }
   .preset-row select, .preset-row input[type="text"] {
     flex: 1; min-width: 0;
@@ -225,6 +238,11 @@
         <label>📅 日期（季节自动匹配）</label>
         <input type="date" id="diaryDate">
       </div>
+    </div>
+
+    <div class="row">
+      <label>🖋 字体</label>
+      <div class="font-chips" id="fontChips"></div>
     </div>
 
     <div class="row">
@@ -312,10 +330,25 @@
     ratio: '3:4',
     marginX: 0.083,   // 图片左右留白（占宽度比例）
     topGap: 0.10,     // 图片上方留白（占高度比例）
-    locked: false     // 留白锁定（防误触）
+    locked: false,    // 留白锁定（防误触）
+    font: 'LXGW WenKai Screen'  // 当前字体 family
   };
 
-  var SERIF = '"LXGW WenKai Screen","Songti SC","Noto Serif SC","STSong","SimSun","Source Han Serif SC",serif';
+  // 可选字体（切片 css 随 App 离线分发）
+  var FONTS = [
+    { family: 'LXGW WenKai Screen', label: '文楷·日常', css: 'fonts/LXGWWenKaiScreen/lxgwwenkaiscreen.css' },
+    { family: 'Ma Shan Zheng', label: '马善政·毛笔楷', css: 'fonts/ma-shan-zheng/400.css' },
+    { family: 'ZCOOL KuaiLe', label: '站酷快乐体', css: 'fonts/zcool-kuaile/400.css' },
+    { family: 'Long Cang', label: '龙藏·钢笔行', css: 'fonts/long-cang/400.css' },
+    { family: 'Zhi Mang Xing', label: '志莽·行书', css: 'fonts/zhi-mang-xing/400.css' },
+    { family: 'Noto Serif SC', label: '思源宋体', css: 'fonts/noto-serif-sc/400.css' }
+  ];
+
+  var SERIF = '"Songti SC","Noto Serif SC","STSong","SimSun","Source Han Serif SC",serif';
+
+  function fontStack() {
+    return '"' + state.font + '",' + SERIF;
+  }
 
   // ---------- 工具 ----------
   function todayStr() {
@@ -387,7 +420,7 @@
       ctx.strokeRect(margin, imgTop, imgW, drawH);
       ctx.setLineDash([]);
       ctx.fillStyle = 'rgba(120,110,95,0.5)';
-      ctx.font = '36px ' + SERIF;
+      ctx.font = '36px ' + fontStack();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('选 一 张 今 天 的 照 片', W / 2, imgTop + drawH / 2);
@@ -398,7 +431,7 @@
     var textY = imgTop + drawH + Math.round(H * 0.10);
     if (state.text) {
       ctx.fillStyle = state.fg;
-      ctx.font = fontSize + 'px ' + SERIF;
+      ctx.font = fontSize + 'px ' + fontStack();
       ctx.textAlign = 'center';
       ctx.textBaseline = 'alphabetic';
       var lines = wrapText(state.text, imgW);
@@ -411,7 +444,7 @@
     var s = seasonOf(state.date);
     var dateText = state.date + (s ? '（' + s + '）' : '');
     ctx.fillStyle = state.fg;
-    ctx.font = Math.round(W * 0.026) + 'px ' + SERIF;  // ≈ 31px
+    ctx.font = Math.round(W * 0.026) + 'px ' + fontStack();  // ≈ 31px
     ctx.textAlign = 'right';
     ctx.fillText(dateText, W - margin, H - Math.round(H * 0.075));
   }
@@ -421,7 +454,7 @@
   function render() {
     var sample = (state.text || '') + state.date + '春夏季秋冬（）-0123456789';
     if (document.fonts && document.fonts.load) {
-      document.fonts.load('43px "LXGW WenKai Screen"', sample)
+      document.fonts.load('43px "' + state.font + '"', sample)
         .then(function () { draw(); })
         .catch(function () { draw(); });
       document.fonts.ready.then(function () { draw(); });   // 兜底：全部字块就绪后再画一次
@@ -654,10 +687,40 @@
     renderPresetOptions(0);
   });
 
+  // ---------- 字体选择器 ----------
+  var fontChips = document.getElementById('fontChips');
+
+  // 注入各字体的切片样式表
+  FONTS.forEach(function (f) {
+    var link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = f.css;
+    document.head.appendChild(link);
+  });
+
+  function renderFontChips() {
+    fontChips.innerHTML = '';
+    FONTS.forEach(function (f) {
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'font-chip' + (state.font === f.family ? ' active' : '');
+      chip.style.fontFamily = '"' + f.family + '","LXGW WenKai Screen",serif';
+      chip.textContent = f.label;
+      chip.addEventListener('click', function () {
+        if (state.font === f.family) return;
+        state.font = f.family;
+        renderFontChips();
+        rememberLast();
+        render();
+      });
+      fontChips.appendChild(chip);
+    });
+  }
+
   function rememberLast() {
     try {
       localStorage.setItem(LAST_KEY, JSON.stringify({
-        marginX: state.marginX, topGap: state.topGap, locked: !!state.locked
+        marginX: state.marginX, topGap: state.topGap, locked: !!state.locked, font: state.font
       }));
     } catch (e) {}
   }
@@ -703,7 +766,7 @@
     };
     var sample = (state.text || '') + state.date + '春夏季秋冬（）-0123456789';
     if (document.fonts && document.fonts.load) {
-      document.fonts.load('43px "LXGW WenKai Screen"', sample)
+      document.fonts.load('43px "' + state.font + '"', sample)
         .then(function () { return document.fonts.ready; })
         .then(finish)
         .catch(finish);
@@ -727,9 +790,14 @@
         topGapHint.textContent = topGapSlider.value + '%';
       }
       setLocked(!!(s && s.locked), true);
+      if (s && s.font && FONTS.some(function (f) { return f.family === s.font; })) {
+        state.font = s.font;
+        renderFontChips();
+      }
     } catch (e) {}
   })();
   renderPresetOptions(0);
+  renderFontChips();
 
   // 初始渲染
   render();

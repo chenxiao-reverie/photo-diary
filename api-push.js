@@ -144,13 +144,34 @@ async function main() {
   console.log('分支 main 已更新');
 
   // 5. 工作流文件走 Contents API（Git Data API 对 .github/ 路径返回 404）
+  // 注意：token 缺 workflow scope 时 PUT 会 404 —— 先比对内容，没变就跳过
   if (workflowFile) {
+    const localContent = fs.readFileSync(workflowFile.full).toString('base64');
+    let remoteSha = null;
+    try {
+      remoteSha = (await ghApi(`${API}/contents/${workflowFile.rel}?ref=main`, null, 'GET')).sha;
+    } catch (e) { /* 远端不存在，继续走 PUT */ }
+    if (remoteSha) {
+      try {
+        const remoteContent = (await ghApi(`${API}/contents/${workflowFile.rel}?ref=main`, null, 'GET')).content.replace(/\n/g, '');
+        if (remoteContent === localContent) {
+          console.log('工作流文件无变化，跳过上传');
+          return finish();
+        }
+      } catch (e) {}
+      console.log('⚠️ 工作流有改动，但 token 缺 workflow scope 无法更新 —— 请运行 `gh auth refresh -s workflow` 或在网页端手动更新');
+      return finish();
+    }
     await ghApi(`${API}/contents/${workflowFile.rel}`, {
       message: 'ci: 添加 APK 云端打包流水线',
-      content: fs.readFileSync(workflowFile.full).toString('base64'),
+      content: localContent,
       branch: 'main'
     }, 'PUT');
     console.log(`工作流已上传: ${workflowFile.rel}`);
+  }
+
+  function finish() {
+    console.log(`✅ 推送完成：https://github.com/${OWNER}/${REPO}/actions`);
   }
 
   console.log(`✅ 推送完成：https://github.com/${OWNER}/${REPO}/commit/${commit.sha.slice(0, 7)}`);
