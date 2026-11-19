@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="theme-color" content="#F7F3EC">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<title>图片日记 · Photo Diary</title>
+<link rel="stylesheet" href="fonts/LXGWWenKaiScreen/lxgwwenkaiscreen.css">
+<style>
+  :root {
+    --bg: #ece9e2;
+    --panel: #ffffff;
+    --ink: #2b2b2b;
+    --sub: #8a857c;
+    --accent: #b4593c;
+    --line: #e5e1d8;
+    --radius: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; }
+  body {
+    font-family: "LXGW WenKai Screen", -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 16px;
+  }
+  header { text-align: center; margin: 6px 0 14px; }
+  header h1 { font-size: 20px; font-weight: 600; letter-spacing: 4px; }
+  header p { font-size: 12px; color: var(--sub); margin-top: 4px; letter-spacing: 2px; }
+
+  .stage {
+    width: 100%;
+    max-width: 420px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .canvas-wrap {
+    background: var(--panel);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 24px rgba(60,50,35,.10);
+    padding: 10px;
+    display: flex;
+    justify-content: center;
+  }
+  canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+    touch-action: manipulation;
+  }
+
+  .panel {
+    background: var(--panel);
+    border-radius: var(--radius);
+    box-shadow: 0 6px 24px rgba(60,50,35,.10);
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .row { display: flex; flex-direction: column; gap: 8px; }
+  .row-inline { display: flex; gap: 12px; align-items: flex-end; }
+  .row-inline > div { flex: 1; }
+  label { font-size: 13px; color: var(--sub); display: flex; justify-content: space-between; align-items: center; }
+  label .hint { font-size: 11px; }
+
+  input[type="text"], textarea, input[type="date"] {
+    width: 100%;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    padding: 10px 12px;
+    font-size: 15px;
+    font-family: inherit;
+    background: #fbfaf7;
+    color: var(--ink);
+    outline: none;
+  }
+  textarea { resize: none; line-height: 1.6; }
+  input:focus, textarea:focus { border-color: var(--accent); background: #fff; }
+
+  .color-row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+  input[type="color"] {
+    width: 44px; height: 34px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: #fbfaf7;
+    padding: 2px;
+    cursor: pointer;
+  }
+  .swatch {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    border: 2px solid #fff;
+    box-shadow: 0 0 0 1px var(--line);
+    cursor: pointer;
+    transition: transform .15s;
+  }
+  .swatch:active, .swatch:hover { transform: scale(1.15); }
+
+  .seg { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+  .seg button {
+    border: none; background: #fbfaf7; padding: 9px 0;
+    font-size: 13px; color: var(--sub); cursor: pointer; font-family: inherit;
+  }
+  .seg button.active { background: var(--ink); color: #fff; }
+
+  .btn {
+    width: 100%;
+    border: none;
+    border-radius: 12px;
+    padding: 13px 0;
+    font-size: 16px;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 2px;
+  }
+  .btn-primary { background: var(--ink); color: #fff; }
+  .btn-primary:active { opacity: .85; }
+  .btn-ghost { background: transparent; border: 1px solid var(--line); color: var(--sub); font-size: 14px; }
+
+  /* 文件选择：input 原生覆盖在 label 上，iOS/安卓/电脑均原生触发，不依赖 JS click */
+  .pick-label { position: relative; display: flex; align-items: center; justify-content: center; }
+  .file-hidden {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    height: 28px;
+  }
+
+  .preset-row { display: flex; gap: 8px; align-items: stretch; }
+  .preset-row select, .preset-row input[type="text"] {
+    flex: 1; min-width: 0;
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 10px; font-size: 14px; font-family: inherit;
+    background: #fbfaf7; color: var(--ink); outline: none;
+  }
+  .preset-row button {
+    flex: 0 0 auto;
+    border: 1px solid var(--line); border-radius: 10px;
+    padding: 8px 14px; font-size: 14px; font-family: inherit;
+    background: #fbfaf7; color: var(--ink); cursor: pointer;
+  }
+  .preset-row button:active { opacity: .7; }
+
+  .tips { font-size: 12px; color: var(--sub); line-height: 1.7; text-align: center; }
+  .hidden { display: none; }
+
+  footer { margin-top: 18px; font-size: 11px; color: var(--sub); letter-spacing: 1px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>图 片 日 记</h1>
+  <p>一张照片 · 一句话 · 一天</p>
+</header>
+
+<div class="stage">
+
+  <!-- 预览画布 -->
+  <div class="canvas-wrap">
+    <canvas id="card" width="1200" height="1600"></canvas>
+  </div>
+
+  <!-- 导出结果图（供手机长按保存） -->
+  <div id="exportBox" class="canvas-wrap hidden">
+    <img id="exportImg" alt="生成的日记图片" style="width:100%;border-radius:8px;">
+    <span class="tips" style="position:static;margin-top:6px;">手机：长按上方图片保存 · 电脑：点下方按钮下载</span>
+  </div>
+
+  <!-- 控制面板 -->
+  <div class="panel">
+
+    <div class="row">
+      <label>📷 照片 <span class="hint">电脑也可拖拽图片到预览区</span></label>
+      <label class="btn btn-ghost pick-label">
+        <span id="pickLabel">选择照片（相册 / 拍摄 / 电脑文件）</span>
+        <input type="file" id="fileInput" accept="image/*" class="file-hidden">
+      </label>
+    </div>
+
+    <div class="row">
+      <label>✍️ 一句话 <span class="hint" id="charHint">0 / 60</span></label>
+      <textarea id="diaryText" rows="2" maxlength="60" placeholder="这么大的公园，总有人能找到属于自己的小角落。"></textarea>
+    </div>
+
+    <div class="row-inline">
+      <div>
+        <label>📅 日期（季节自动匹配）</label>
+        <input type="date" id="diaryDate">
+      </div>
+    </div>
+
+    <div class="row">
+      <label>🎨 背景颜色</label>
+      <div class="color-row">
+        <div class="swatch" style="background:#ffffff" data-bg="#ffffff" title="纯白"></div>
+        <div class="swatch" style="background:#f7f3ec" data-bg="#f7f3ec" title="米白"></div>
+        <div class="swatch" style="background:#f6e7e0" data-bg="#f6e7e0" title="浅粉"></div>
+        <div class="swatch" style="background:#e7efe4" data-bg="#e7efe4" title="浅绿"></div>
+        <div class="swatch" style="background:#e4eaf2" data-bg="#e4eaf2" title="浅蓝"></div>
+        <div class="swatch" style="background:#1f2a24" data-bg="#1f2a24" title="墨绿"></div>
+        <div class="swatch" style="background:#111111" data-bg="#111111" title="纯黑"></div>
+        <input type="color" id="bgColor" value="#ffffff" title="自定义背景色">
+      </div>
+    </div>
+
+    <div class="row">
+      <label>🖋 文字颜色</label>
+      <div class="color-row">
+        <div class="swatch" style="background:#2b2b2b" data-fg="#2b2b2b" title="墨黑"></div>
+        <div class="swatch" style="background:#5a5248" data-fg="#5a5248" title="棕灰"></div>
+        <div class="swatch" style="background:#b4593c" data-fg="#b4593c" title="赭红"></div>
+        <div class="swatch" style="background:#3c5a6e" data-fg="#3c5a6e" title="黛蓝"></div>
+        <div class="swatch" style="background:#f2efe8" data-fg="#f2efe8" title="米白"></div>
+        <input type="color" id="fgColor" value="#2b2b2b" title="自定义文字色">
+      </div>
+    </div>
+
+    <div class="row">
+      <label>📐 比例（横屏 / 竖屏 / 方图 / 壁纸）</label>
+      <div class="seg" id="ratioSeg">
+        <button data-ratio="3:2">3 : 2 横</button>
+        <button data-ratio="4:3">4 : 3 横</button>
+        <button data-ratio="1:1">1 : 1 方</button>
+        <button data-ratio="3:4" class="active">3 : 4 竖</button>
+        <button data-ratio="2:3">2 : 3 竖</button>
+        <button data-ratio="9:16">9 : 16 壁纸</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <label>↔ 图片左右留白 <span class="hint" id="marginXHint">8%</span></label>
+      <input type="range" id="marginXSlider" min="0" max="30" value="8">
+    </div>
+
+    <div class="row">
+      <label>↑ 图片上方留白 <span class="hint" id="topGapHint">10%</span></label>
+      <input type="range" id="topGapSlider" min="0" max="30" value="10">
+    </div>
+
+    <div class="row">
+      <label>💾 留白预设 <span class="hint">左右 + 顶部一起保存</span></label>
+      <div class="preset-row">
+        <select id="presetSelect"></select>
+        <input type="text" id="presetName" placeholder="预设名" maxlength="10">
+        <button type="button" id="presetSaveBtn">存</button>
+        <button type="button" id="presetDelBtn">删</button>
+      </div>
+    </div>
+
+    <button class="btn btn-primary" id="exportBtn" type="button">⬇︎ 导出图片</button>
+    <div class="tips">所有处理都在本地浏览器完成，照片不会上传到任何服务器。</div>
+  </div>
+</div>
+
+<footer>PHOTO DIARY · 用照片记住每一天</footer>
+
+<script>
+(function () {
+  'use strict';
+
+  var canvas = document.getElementById('card');
+  var ctx = canvas.getContext('2d');
+
+  var state = {
+    img: null,
+    text: '',
+    date: todayStr(),
+    bg: '#ffffff',
+    fg: '#2b2b2b',
+    ratio: '3:4',
+    marginX: 0.083,   // 图片左右留白（占宽度比例）
+    topGap: 0.10      // 图片上方留白（占高度比例）
+  };
+
+  var SERIF = '"LXGW WenKai Screen","Songti SC","Noto Serif SC","STSong","SimSun","Source Han Serif SC",serif';
+
+  // ---------- 工具 ----------
+  function todayStr() {
+    var d = new Date();
+    var m = d.getMonth() + 1, day = d.getDate();
+    return d.getFullYear() + '-' + (m < 10 ? '0' + m : m) + '-' + (day < 10 ? '0' + day : day);
+  }
+  function seasonOf(dateStr) {
+    var p = (dateStr || '').split('-');
+    var m = parseInt(p[1], 10);
+    if (isNaN(m)) return '';
+    if (m >= 3 && m <= 5) return '春';
+    if (m >= 6 && m <= 8) return '夏';
+    if (m >= 9 && m <= 11) return '秋';
+    return '冬';
+  }
+  function wrapText(text, maxWidth) {
+    var lines = [];
+    var line = '';
+    for (var i = 0; i < text.length; i++) {
+      var ch = text[i];
+      if (ch === '\n') { lines.push(line); line = ''; continue; }
+      if (ctx.measureText(line + ch).width > maxWidth && line) {
+        lines.push(line); line = ch;
+      } else {
+        line += ch;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
+  // ---------- 绘制 ----------
+  function draw() {
+    var parts = state.ratio.split(':');
+    var r = parseInt(parts[0], 10) / parseInt(parts[1], 10);
+    var W = 1200;
+    var H = Math.round(W / r);
+    canvas.width = W;
+    canvas.height = H;
+
+    // 背景
+    ctx.fillStyle = state.bg;
+    ctx.fillRect(0, 0, W, H);
+
+    var margin = Math.round(W * state.marginX);        // 左右留白（可调）
+    var imgW = W - margin * 2;
+    var imgTop = Math.round(H * state.topGap);         // 上方留白（可调）
+    // 防碰撞：图片区高度封顶，给下方文字（约 13%H）+ 日期（约 7.5%H）+ 间距（约 6.5%H）留出空间
+    var maxImgH = Math.max(Math.round(H * 0.15),
+                           Math.min(Math.round(H * 0.56), H - imgTop - Math.round(H * 0.27)));
+
+    var drawH = 0;
+
+    if (state.img) {
+      var im = state.img;
+      // 原比例限高（contain）：等比缩放到完全装进 imgW × maxImgH 的框内，绝不裁切、绝不变形
+      var scale = Math.min(imgW / im.naturalWidth, maxImgH / im.naturalHeight);
+      var drawW = Math.max(1, Math.round(im.naturalWidth * scale));
+      drawH = Math.max(1, Math.round(im.naturalHeight * scale));
+      var dx = margin + Math.round((imgW - drawW) / 2);   // 窄图水平居中，两侧留背景色
+      ctx.drawImage(im, dx, imgTop, drawW, drawH);
+    } else {
+      // 占位框
+      drawH = Math.min(Math.round(H * 0.42), maxImgH);
+      ctx.strokeStyle = 'rgba(120,110,95,0.35)';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([10, 8]);
+      ctx.strokeRect(margin, imgTop, imgW, drawH);
+      ctx.setLineDash([]);
+      ctx.fillStyle = 'rgba(120,110,95,0.5)';
+      ctx.font = '36px ' + SERIF;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('选 一 张 今 天 的 照 片', W / 2, imgTop + drawH / 2);
+    }
+
+    // 文字
+    var fontSize = Math.round(W * 0.036);      // ≈ 43px
+    var textY = imgTop + drawH + Math.round(H * 0.10);
+    if (state.text) {
+      ctx.fillStyle = state.fg;
+      ctx.font = fontSize + 'px ' + SERIF;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'alphabetic';
+      var lines = wrapText(state.text, imgW);
+      lines.forEach(function (ln, i) {
+        ctx.fillText(ln, W / 2, textY + i * Math.round(fontSize * 1.8));
+      });
+    }
+
+    // 日期 + 季节（右下角）
+    var s = seasonOf(state.date);
+    var dateText = state.date + (s ? '（' + s + '）' : '');
+    ctx.fillStyle = state.fg;
+    ctx.font = Math.round(W * 0.026) + 'px ' + SERIF;  // ≈ 31px
+    ctx.textAlign = 'right';
+    ctx.fillText(dateText, W - margin, H - Math.round(H * 0.075));
+  }
+
+  // ---------- 字体加载 + 渲染入口 ----------
+  // canvas 里的文字不会自动触发 unicode-range 分块加载，必须先显式 load 再绘制
+  function render() {
+    var sample = (state.text || '') + state.date + '春夏季秋冬（）-0123456789';
+    if (document.fonts && document.fonts.load) {
+      document.fonts.load('43px "LXGW WenKai Screen"', sample)
+        .then(function () { draw(); })
+        .catch(function () { draw(); });
+      document.fonts.ready.then(function () { draw(); });   // 兜底：全部字块就绪后再画一次
+    } else {
+      draw();
+    }
+  }
+
+  // ---------- 事件绑定 ----------
+  var fileInput = document.getElementById('fileInput');
+  var pickLabel = document.getElementById('pickLabel');
+
+  function loadFile(f) {
+    if (!f) return;
+    if (!/^image\//.test(f.type)) {
+      alert('请选择图片文件（jpg / png / webp 等）');
+      return;
+    }
+    var url = URL.createObjectURL(f);
+    var im = new Image();
+    im.onload = function () {
+      state.img = im;
+      URL.revokeObjectURL(url);
+      render();
+      pickLabel.textContent = '更换照片';
+    };
+    im.onerror = function () {
+      URL.revokeObjectURL(url);
+      alert('这张图片读取失败，请换一张试试');
+    };
+    im.src = url;
+  }
+
+  // 原生 change 事件（label 触发，iOS/安卓/电脑通用）
+  fileInput.addEventListener('change', function (e) {
+    loadFile(e.target.files && e.target.files[0]);
+    fileInput.value = '';   // 允许再次选择同一张图
+  });
+
+  // 电脑端：拖拽图片到预览区直接上墙
+  var dropZone = canvas.parentElement;
+  ['dragenter', 'dragover'].forEach(function (ev) {
+    dropZone.addEventListener(ev, function (e) {
+      e.preventDefault();
+      dropZone.style.outline = '2px dashed var(--accent)';
+      dropZone.style.outlineOffset = '-6px';
+    });
+  });
+  dropZone.addEventListener('dragleave', function () {
+    dropZone.style.outline = 'none';
+  });
+  dropZone.addEventListener('drop', function (e) {
+    e.preventDefault();
+    dropZone.style.outline = 'none';
+    loadFile(e.dataTransfer.files && e.dataTransfer.files[0]);
+  });
+
+  var diaryText = document.getElementById('diaryText');
+  var charHint = document.getElementById('charHint');
+  diaryText.addEventListener('input', function () {
+    state.text = diaryText.value.trim();
+    charHint.textContent = diaryText.value.length + ' / 60';
+    render();
+  });
+
+  var diaryDate = document.getElementById('diaryDate');
+  diaryDate.value = state.date;
+  diaryDate.addEventListener('change', function () {
+    if (diaryDate.value) state.date = diaryDate.value;
+    render();
+  });
+
+  // 背景 / 文字颜色
+  var bgColor = document.getElementById('bgColor');
+  var fgColor = document.getElementById('fgColor');
+
+  function bindSwatches(attr, colorInput, key) {
+    document.querySelectorAll('.swatch[' + attr + ']').forEach(function (sw) {
+      sw.addEventListener('click', function () {
+        state[key] = sw.getAttribute(attr);
+        colorInput.value = state[key].length === 7 ? state[key] : colorInput.value;
+        render();
+      });
+    });
+  }
+  bindSwatches('data-bg', bgColor, 'bg');
+  bindSwatches('data-fg', fgColor, 'fg');
+
+  bgColor.addEventListener('input', function () { state.bg = bgColor.value; render(); });
+  fgColor.addEventListener('input', function () { state.fg = fgColor.value; render(); });
+
+  // 深色背景时若文字色未特意改过，提示对比度（简单处理：切换背景预设时联动建议文字色）
+  var bgSwatches = document.querySelectorAll('.swatch[data-bg]');
+  var fgSwatches = document.querySelectorAll('.swatch[data-fg]');
+  var fgTouched = false;
+  fgColor.addEventListener('change', function () { fgTouched = true; });
+  fgSwatches.forEach(function (sw) {
+    sw.addEventListener('click', function () { fgTouched = true; });
+  });
+  bgSwatches.forEach(function (sw) {
+    sw.addEventListener('click', function () {
+      var b = sw.getAttribute('data-bg');
+      if (!fgTouched) {
+        // 自动切换到可读的文字色
+        var dark = ['#1f2a24', '#111111'].indexOf(b) >= 0;
+        state.fg = dark ? '#f2efe8' : '#2b2b2b';
+        fgColor.value = state.fg;
+        render();
+      }
+    });
+  });
+
+  // 尺寸切换
+  document.getElementById('ratioSeg').addEventListener('click', function (e) {
+    var btn = e.target.closest('button');
+    if (!btn) return;
+    this.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
+    btn.classList.add('active');
+    state.ratio = btn.getAttribute('data-ratio');
+    render();
+  });
+
+  // 留白调节：左右与顶部互相独立，图片等比缩放且始终水平居中
+  var marginXSlider = document.getElementById('marginXSlider');
+  var topGapSlider = document.getElementById('topGapSlider');
+  var marginXHint = document.getElementById('marginXHint');
+  var topGapHint = document.getElementById('topGapHint');
+
+  marginXSlider.addEventListener('input', function () {
+    state.marginX = parseInt(marginXSlider.value, 10) / 100;
+    marginXHint.textContent = marginXSlider.value + '%';
+    render();
+  });
+  topGapSlider.addEventListener('input', function () {
+    state.topGap = parseInt(topGapSlider.value, 10) / 100;
+    topGapHint.textContent = topGapSlider.value + '%';
+    rememberLast();
+    render();
+  });
+
+  // ---------- 留白预设（localStorage 持久化） ----------
+  var PRESET_KEY = 'photoDiary.presets';
+  var LAST_KEY = 'photoDiary.last';
+  var BUILTIN_PRESETS = [
+    { name: '默认（8 / 10）',   marginX: 0.083, topGap: 0.10 },
+    { name: '紧凑（4 / 5）',    marginX: 0.04,  topGap: 0.05 },
+    { name: '舒展（12 / 18）',  marginX: 0.12,  topGap: 0.18 }
+  ];
+
+  var presetSelect = document.getElementById('presetSelect');
+  var presetNameInput = document.getElementById('presetName');
+
+  function readUserPresets() {
+    try {
+      var arr = JSON.parse(localStorage.getItem(PRESET_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (e) { return []; }
+  }
+  function writeUserPresets(arr) {
+    try { localStorage.setItem(PRESET_KEY, JSON.stringify(arr)); } catch (e) {}
+  }
+  function allPresets() { return BUILTIN_PRESETS.concat(readUserPresets()); }
+
+  function renderPresetOptions(selectedIndex) {
+    var presets = allPresets();
+    presetSelect.innerHTML = '';
+    presets.forEach(function (p, i) {
+      var opt = document.createElement('option');
+      opt.value = String(i);
+      opt.textContent = (i < BUILTIN_PRESETS.length ? '[内置] ' : '') + p.name +
+        '（' + Math.round(p.marginX * 100) + ' / ' + Math.round(p.topGap * 100) + '）';
+      presetSelect.appendChild(opt);
+    });
+    presetSelect.value = String(typeof selectedIndex === 'number' ? selectedIndex : 0);
+  }
+
+  function applyPreset(p) {
+    state.marginX = p.marginX;
+    state.topGap = p.topGap;
+    marginXSlider.value = Math.round(p.marginX * 100);
+    topGapSlider.value = Math.round(p.topGap * 100);
+    marginXHint.textContent = marginXSlider.value + '%';
+    topGapHint.textContent = topGapSlider.value + '%';
+    rememberLast();
+    render();
+  }
+
+  presetSelect.addEventListener('change', function () {
+    var p = allPresets()[parseInt(this.value, 10)];
+    if (p) applyPreset(p);
+  });
+
+  document.getElementById('presetSaveBtn').addEventListener('click', function () {
+    var users = readUserPresets();
+    var name = presetNameInput.value.trim() || ('自定义 ' + (users.length + 1));
+    users.push({ name: name, marginX: state.marginX, topGap: state.topGap });
+    writeUserPresets(users);
+    presetNameInput.value = '';
+    var idx = BUILTIN_PRESETS.length + users.length - 1;
+    renderPresetOptions(idx);
+    alert('已保存预设「' + name + '」');
+  });
+
+  document.getElementById('presetDelBtn').addEventListener('click', function () {
+    var idx = parseInt(presetSelect.value, 10);
+    if (idx < BUILTIN_PRESETS.length) { alert('内置预设不能删除'); return; }
+    var users = readUserPresets();
+    users.splice(idx - BUILTIN_PRESETS.length, 1);
+    writeUserPresets(users);
+    renderPresetOptions(0);
+  });
+
+  function rememberLast() {
+    try {
+      localStorage.setItem(LAST_KEY, JSON.stringify({ marginX: state.marginX, topGap: state.topGap }));
+    } catch (e) {}
+  }
+
+  // ---------- 导出 ----------
+  function exportCard() {
+    var finish = function () {
+      draw();   // 字体就绪后最终绘制一次，避免导出用到未加载字体的画布
+      var fname = '图片日记-' + state.date + '.png';
+
+      // 安卓 App 内：走原生桥，直接存进系统相册「图片日记」
+      if (window.AndroidBridge && window.AndroidBridge.saveImage) {
+        try {
+          var data = canvas.toDataURL('image/png').split(',')[1];
+          window.AndroidBridge.saveImage(data, fname);
+        } catch (err) { alert('保存失败：' + err.message); }
+        return;
+      }
+
+      // 浏览器环境：blob 下载 / iOS 长按保存
+      canvas.toBlob(function (blob) {
+        if (!blob) { alert('生成失败，请重试'); return; }
+        var url = URL.createObjectURL(blob);
+        var box = document.getElementById('exportBox');
+        document.getElementById('exportImg').src = url;
+        box.classList.remove('hidden');
+        box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = fname;
+        document.body.appendChild(a);
+        if (!/iP(hone|ad|od)/.test(navigator.userAgent)) a.click();
+        document.body.removeChild(a);
+
+        if (/iP(hone|ad|od)/.test(navigator.userAgent)) {
+          setTimeout(function () {
+            alert('iPhone/iPad：请长按刚展示的大图，选择"存储到照片"即可保存。');
+          }, 600);
+        }
+        setTimeout(function () { URL.revokeObjectURL(url); }, 60000);
+      }, 'image/png');
+    };
+    var sample = (state.text || '') + state.date + '春夏季秋冬（）-0123456789';
+    if (document.fonts && document.fonts.load) {
+      document.fonts.load('43px "LXGW WenKai Screen"', sample)
+        .then(function () { return document.fonts.ready; })
+        .then(finish)
+        .catch(finish);
+    } else {
+      finish();
+    }
+  }
+
+  document.getElementById('exportBtn').addEventListener('click', exportCard);
+
+  // 恢复上次使用的留白参数
+  (function restoreLast() {
+    try {
+      var s = JSON.parse(localStorage.getItem(LAST_KEY) || 'null');
+      if (s && typeof s.marginX === 'number' && typeof s.topGap === 'number') {
+        state.marginX = Math.min(Math.max(s.marginX, 0), 0.30);
+        state.topGap = Math.min(Math.max(s.topGap, 0), 0.30);
+        marginXSlider.value = Math.round(state.marginX * 100);
+        topGapSlider.value = Math.round(state.topGap * 100);
+        marginXHint.textContent = marginXSlider.value + '%';
+        topGapHint.textContent = topGapSlider.value + '%';
+      }
+    } catch (e) {}
+  })();
+  renderPresetOptions(0);
+
+  // 初始渲染
+  render();
+
+  // PWA：仅在 http(s) 环境注册离线缓存（本地 file:// 打开时自动跳过）
+  if ('serviceWorker' in navigator && location.protocol.indexOf('http') === 0) {
+    navigator.serviceWorker.register('./sw.js').catch(function () {});
+  }
+})();
+</script>
+</body>
+</html>

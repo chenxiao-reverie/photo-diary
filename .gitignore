@@ -1,0 +1,9 @@
+# 本地工作区数据（不上传）
+.workbuddy/
+.DS_Store
+
+# 构建产物（可由 build-singlefile.js 重新生成）
+图片日记-单文件版.html
+
+# 内部文档
+PhotoDiary-需求确凿书.md
