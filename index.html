@@ -334,6 +334,8 @@
     font: 'LXGW WenKai Screen'  // 当前字体 family
   };
 
+  var currentBudget = null;  // 动态字数预算（draw 时刷新）
+
   // 可选字体（切片 css 随 App 离线分发）
   var FONTS = [
     { family: 'LXGW WenKai Screen', label: '文楷·日常', css: 'fonts/LXGWWenKaiScreen/lxgwwenkaiscreen.css' },
@@ -429,6 +431,14 @@
     // 文字
     var fontSize = Math.round(W * 0.036);      // ≈ 43px
     var textY = imgTop + drawH + Math.round(H * 0.10);
+
+    // 动态字数预算：由当前图片高度、留白、比例实时推导（方案 B）
+    var dateBaseline = H - Math.round(H * 0.075);
+    var dateTop = dateBaseline - Math.round(W * 0.026) - 12;  // 日期文字顶 + 12px 安全距
+    // 行计数：最后一行基线不超过 dateTop（再留 10px 下伸部余量）
+    var maxLines = Math.max(1, Math.floor((dateTop - 10 - textY) / (fontSize * 1.8)) + 1);
+    var charsPerLine = Math.max(8, Math.floor(imgW / fontSize));   // 中文字≈1em，保守取整
+    currentBudget = { maxLines: maxLines, maxChars: maxLines * charsPerLine };
     if (state.text) {
       ctx.fillStyle = state.fg;
       ctx.font = fontSize + 'px ' + fontStack();
@@ -451,15 +461,37 @@
 
   // ---------- 字体加载 + 渲染入口 ----------
   // canvas 里的文字不会自动触发 unicode-range 分块加载，必须先显式 load 再绘制
+  function drawAndApply() {
+    draw();
+    applyBudget();
+  }
+
+  // 字数预算落到输入框：上限、余量提示、超限锁定
+  function applyBudget() {
+    if (!currentBudget || !charHint) return;
+    var len = state.text.length;
+    var max = currentBudget.maxChars;
+    var over = len > max;
+    diaryText.disabled = over;
+    if (!over) diaryText.setAttribute('maxlength', max);
+    if (over) {
+      charHint.textContent = '超出 ' + (len - max) + ' 字（当前版面上限 ' + max + ' 字 · ' + currentBudget.maxLines + ' 行），删减文字或缩小图片后可继续';
+      charHint.style.color = '#b4593c';
+    } else {
+      charHint.textContent = len + ' / ' + max + ' 字（' + currentBudget.maxLines + ' 行）';
+      charHint.style.color = '';
+    }
+  }
+
   function render() {
     var sample = (state.text || '') + state.date + '春夏季秋冬（）-0123456789';
     if (document.fonts && document.fonts.load) {
       document.fonts.load('43px "' + state.font + '"', sample)
-        .then(function () { draw(); })
-        .catch(function () { draw(); });
-      document.fonts.ready.then(function () { draw(); });   // 兜底：全部字块就绪后再画一次
+        .then(function () { drawAndApply(); })
+        .catch(function () { drawAndApply(); });
+      document.fonts.ready.then(function () { drawAndApply(); });   // 兜底：全部字块就绪后再画一次
     } else {
-      draw();
+      drawAndApply();
     }
   }
 
@@ -516,8 +548,7 @@
   var charHint = document.getElementById('charHint');
   diaryText.addEventListener('input', function () {
     state.text = diaryText.value.trim();
-    charHint.textContent = diaryText.value.length + ' / 60';
-    render();
+    render();   // 字数上限与提示由 applyBudget 统一刷新
   });
 
   var diaryDate = document.getElementById('diaryDate');
