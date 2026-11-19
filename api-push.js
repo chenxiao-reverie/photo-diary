@@ -15,15 +15,9 @@ const COMMIT_MSG = process.argv[2] || 'feat: 图片日记 v1.0 —— 网页/App
 
 // 与 .gitignore 一致的排除规则
 const EXCLUDE = new Set(['.git', '.workbuddy', '图片日记-单文件版.html', 'PhotoDiary-需求确凿书.md', '.DS_Store']);
-// 字体目录只保留实际引用的文件：lxgwwenkaiscreen.css + 对应 97 个分块 + 许可证
+// 字体目录：排除霞鹜包内未使用的变体切片（GB 版等），其余全部放行
 function fontFileWanted(rel) {
-  if (!rel.startsWith('fonts/')) return true;
-  const keep = [
-    'fonts/LXGWWenKaiScreen/lxgwwenkaiscreen.css',
-    'fonts/LXGWWenKaiScreen/OFL.txt',
-    'fonts/LXGWWenKaiScreen/VERSION'
-  ];
-  if (keep.includes(rel)) return true;
+  if (!rel.startsWith('fonts/LXGWWenKaiScreen/files/')) return true;
   return /^fonts\/LXGWWenKaiScreen\/files\/lxgwwenkaiscreen-subset-\d+\.woff2$/.test(rel);
 }
 
@@ -40,7 +34,7 @@ function walk(dir, base) {
   return out;
 }
 
-async function ghApi(url, body, method = 'POST', tries = 3) {
+async function ghApi(url, body, method = 'POST', tries = 4) {
   for (let i = 1; i <= tries; i++) {
     try {
       const resp = await fetch(url, {
@@ -57,8 +51,10 @@ async function ghApi(url, body, method = 'POST', tries = 3) {
       return resp.json();
     } catch (e) {
       if (i === tries) throw e;
-      process.stdout.write(`\n  [重试 ${i}/3] ${e.message.slice(0, 80)}\n`);
-      await new Promise((r) => setTimeout(r, 1500 * i));
+      const isRateLimit = /403|rate limit/i.test(e.message);
+      const wait = isRateLimit ? 65000 : 2000 * i;
+      process.stdout.write(`\n  [重试 ${i}/${tries}] ${e.message.slice(0, 70)} → 等 ${Math.round(wait / 1000)}s\n`);
+      await new Promise((r) => setTimeout(r, wait));
     }
   }
 }
@@ -83,7 +79,7 @@ async function main() {
     console.log('仓库已有内容，跳过引导');
   }
 
-  // 1. 并发上传 blob（并发 6）
+  // 1. 并发上传 blob（并发 3 + 节流，避免触发次级限流）
   const entries = [];
   let done = 0;
   const queue = [...files];
@@ -95,9 +91,10 @@ async function main() {
       entries.push({ path: f.rel, mode: '100644', type: 'blob', sha });
       done++;
       process.stdout.write(`\r  blob ${done}/${files.length}  ${f.rel.slice(0, 60).padEnd(60)}`);
+      await new Promise((r) => setTimeout(r, 250));
     }
   }
-  await Promise.all(Array.from({ length: 6 }, worker));
+  await Promise.all(Array.from({ length: 3 }, worker));
   console.log('');
 
   // 2. 基于 main 当前 commit 构建根 tree（main 不存在则从 master 镜像创建）
